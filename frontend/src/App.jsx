@@ -386,6 +386,15 @@ export default function App() {
     'Mây che phủ (%)': parseFloat(h.tcc) || 0
   })).slice(0, 48); // Show 48 hours trend
 
+  // Render location display text (remap Pilbara to Vietnam setup)
+  const getLocationName = (locStr) => {
+    if (!locStr) return 'Đường Số 11, Bình Hưng, TP. Hồ Chí Minh';
+    if (locStr.includes('Pilbara') || locStr.includes('Australia')) {
+      return 'Đường Số 11, Bình Hưng, TP. Hồ Chí Minh';
+    }
+    return locStr;
+  };
+
   return (
     <div className="dashboard-container">
       {/* Header */}
@@ -440,7 +449,7 @@ export default function App() {
               <div className="current-card-content">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                   <MapPin size={14} />
-                  <span>{latestRun.location}</span>
+                  <span>{getLocationName(latestRun.location)}</span>
                 </div>
                 
                 {getWeatherIcon(hourlyData[0]?.weather_icon)}
