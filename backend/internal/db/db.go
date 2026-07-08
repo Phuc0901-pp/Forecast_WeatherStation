@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/tanbaocorp/janeweather/backend/internal/model"
 )
 
@@ -22,10 +23,15 @@ type DBClient struct {
 
 // NewDBClient initializes a connection pool to the Supabase database.
 func NewDBClient(dbURL string) (*DBClient, error) {
-	db, err := sql.Open("pgx", dbURL)
+	connConfig, err := pgx.ParseConfig(dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
 	}
+
+	// Disable prepared statement cache for compatibility with PgBouncer/Supabase pooler
+	connConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
+	db := stdlib.OpenDB(*connConfig)
 
 	// Set connection limits
 	db.SetMaxOpenConns(5)
@@ -149,14 +155,14 @@ func (dbc *DBClient) SaveForecast(forecast *model.ForecastResponse) error {
 			h.WindSprayRating,
 			h.TccSprayRating,
 			h.DeltaTSprayRating,
-			rawBytes,
+			string(rawBytes),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert hourly forecast for %s: %w", h.Time, err)
 		}
 	}
 
-	// 3. Insert daily forecasts
+	// 4. Insert daily forecasts
 	dailyQuery := `
 		INSERT INTO daily_forecast (
 			update_time, prediction_date, weather_summary, temperature_max, temperature_min,
@@ -188,7 +194,7 @@ func (dbc *DBClient) SaveForecast(forecast *model.ForecastResponse) error {
 			d.DayIconPrecis,
 			d.NightIcon,
 			d.NightIconPrecis,
-			rawBytes,
+			string(rawBytes),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert daily forecast for %s: %w", d.Time, err)

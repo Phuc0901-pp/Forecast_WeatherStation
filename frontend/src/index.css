@@ -3,29 +3,29 @@
 :root {
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   
-  /* Color Palette (Sleek Obsidian Dark Mode) */
-  --bg-gradient: linear-gradient(135deg, #0d1224 0%, #080a12 100%);
-  --bg-main: #0b0e1a;
+  /* Color Palette (Sleek Agricultural White & Green Theme) */
+  --bg-gradient: linear-gradient(135deg, #f4f8f6 0%, #e8f2ec 100%);
+  --bg-main: #f0f7f3;
   
-  --primary: #3b82f6;
-  --primary-glow: rgba(59, 130, 246, 0.15);
-  --secondary: #a855f7;
-  --secondary-glow: rgba(168, 85, 247, 0.15);
-  --accent: #06b6d4;
+  --primary: #10b981; /* Vibrant Emerald Green */
+  --primary-glow: rgba(16, 185, 129, 0.08);
+  --secondary: #059669; /* Deep Forest Green */
+  --secondary-glow: rgba(5, 150, 105, 0.08);
+  --accent: #0284c7; /* Sky Blue for Rainfall */
   --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  --warning: #d97706;
+  --error: #dc2626;
   
-  /* Glassmorphism Surface Properties */
-  --glass-bg: rgba(22, 28, 45, 0.65);
-  --glass-bg-hover: rgba(26, 33, 54, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-border-focus: rgba(59, 130, 246, 0.4);
-  --glass-shadow: rgba(0, 0, 0, 0.35);
+  /* Glassmorphism Light Surface Properties */
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg-hover: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(16, 185, 129, 0.12);
+  --glass-border-focus: rgba(16, 185, 129, 0.4);
+  --glass-shadow: rgba(16, 185, 129, 0.05);
   
-  /* Typography Scale */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  /* Typography Scale (Dark slate for readability) */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
   --text-muted: #64748b;
   
   --radius-sm: 8px;
@@ -58,14 +58,14 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(13, 18, 36, 0.5);
+  background: rgba(16, 185, 129, 0.05);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(16, 185, 129, 0.2);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(16, 185, 129, 0.4);
 }
 
 /* Glassmorphic Utilities */
@@ -82,8 +82,9 @@ body {
 
 .glass-card:hover {
   background: var(--glass-bg-hover);
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
   transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.08);
 }
 
 /* App Container */
@@ -103,12 +104,10 @@ body {
 }
 
 .title-section h1 {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  background: linear-gradient(to right, var(--text-primary), var(--text-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
@@ -125,7 +124,7 @@ body {
   border-radius: 50px;
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.2);
-  color: var(--success);
+  color: var(--secondary);
   font-weight: 500;
   font-size: 0.9rem;
 }
@@ -133,7 +132,7 @@ body {
 .status-badge.loading {
   background: rgba(59, 130, 246, 0.1);
   border-color: rgba(59, 130, 246, 0.2);
-  color: var(--primary);
+  color: var(--accent);
 }
 
 /* Main Grid Layout */
@@ -190,7 +189,7 @@ body {
   height: 80px;
   margin: 16px auto;
   color: var(--primary);
-  filter: drop-shadow(0 0 16px var(--primary));
+  filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.3));
 }
 
 .temp-large {
@@ -198,9 +197,7 @@ body {
   font-weight: 800;
   line-height: 1;
   margin-bottom: 8px;
-  background: linear-gradient(to bottom, #ffffff, #e2e8f0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
 }
 
 .weather-precis {
@@ -224,7 +221,8 @@ body {
   align-items: center;
   gap: 6px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(16, 185, 129, 0.03);
+  border: 1px solid rgba(16, 185, 129, 0.05);
   border-radius: var(--radius-sm);
 }
 
@@ -262,14 +260,14 @@ body {
 }
 
 .tab-btn:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.03);
+  color: var(--primary);
+  background: rgba(16, 185, 129, 0.04);
 }
 
 .tab-btn.active {
   color: #ffffff;
   background: var(--primary);
-  box-shadow: 0 4px 20px var(--primary-glow);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.25);
 }
 
 /* Hourly & Daily Lists */
@@ -282,7 +280,7 @@ body {
 
 .hourly-item-card {
   flex: 0 0 110px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(16, 185, 129, 0.02);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 16px;
@@ -291,8 +289,8 @@ body {
 }
 
 .hourly-item-card:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.2);
   transform: translateY(-2px);
 }
 
@@ -306,6 +304,7 @@ body {
   font-size: 1.5rem;
   font-weight: 700;
   margin: 8px 0;
+  color: var(--text-primary);
 }
 
 .hourly-precip {
@@ -327,19 +326,20 @@ body {
   align-items: center;
   gap: 16px;
   padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(16, 185, 129, 0.02);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   transition: var(--transition-smooth);
 }
 
 .daily-row:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(16, 185, 129, 0.04);
+  border-color: rgba(16, 185, 129, 0.2);
 }
 
 .daily-date {
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .daily-summary {
@@ -357,6 +357,7 @@ body {
 
 .daily-temp-max {
   font-weight: 700;
+  color: var(--text-primary);
 }
 
 .daily-temp-min {
@@ -374,6 +375,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  color: var(--text-primary);
 }
 
 .chart-title-bar h3 {
@@ -411,7 +413,7 @@ body {
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, var(--secondary-glow) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--primary-glow) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -431,4 +433,28 @@ body {
 .analytic-desc {
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+/* Table styling for light green mode */
+table {
+  color: var(--text-primary);
+}
+
+th {
+  color: var(--text-secondary);
+}
+
+td {
+  color: var(--text-secondary);
+}
+
+select {
+  background: #ffffff !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+select:focus {
+  border-color: var(--primary) !important;
+  outline: none;
 }
