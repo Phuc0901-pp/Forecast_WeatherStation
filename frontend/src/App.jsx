@@ -25,6 +25,7 @@ export default function App() {
   const [predictionTimesList, setPredictionTimesList] = useState([]);
   const [selectedPredictionTime, setSelectedPredictionTime] = useState('');
   const [evolutionData, setEvolutionData] = useState([]);
+  const [isExportingAll, setIsExportingAll] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -201,7 +202,7 @@ export default function App() {
     return 'var(--error)';
   };
 
-  // Export predictions and deltas to Excel/CSV
+  // Export predictions and deltas to Excel/CSV for the selected 1-hour target
   const handleExportCSV = () => {
     if (evolutionData.length === 0) return;
     
@@ -252,6 +253,127 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Export ENTIRE database predictions and deltas to Excel/CSV
+  const handleExportAllCSV = async () => {
+    setIsExportingAll(true);
+    try {
+      // Fetch all hourly forecast records ordered by prediction_time and update_time
+      const { data, error } = await supabase
+        .from('hourly_forecast')
+        .select('*')
+        .order('prediction_time', { ascending: true })
+        .order('update_time', { ascending: true });
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        alert('Không có dữ liệu để xuất');
+        return;
+      }
+
+      const csvRows = [
+        [
+          'Target Prediction Time (Moc gio du bao)',
+          'Update Time (Thoi diem cao du lieu)',
+          'Predicted Temp (C)',
+          'Temp Delta vs Previous Run (C)',
+          'Temp Delta vs First Run (C)',
+          'Predicted Wind Speed (km/h)',
+          'Wind Delta vs Previous Run (km/h)',
+          'Wind Delta vs First Run (km/h)',
+          'Predicted Rainfall (mm)',
+          'Rain Delta vs Previous Run (mm)',
+          'Rain Delta vs First Run (mm)',
+          'Overall Spray Rating',
+          'Temp Spray Rating',
+          'Wind Spray Rating',
+          'Cloud Spray Rating',
+          'Delta T Spray Rating'
+        ]
+      ];
+
+      // Keep track of values for delta calculations grouped by prediction_time
+      const groups = {};
+      data.forEach(item => {
+        if (!groups[item.prediction_time]) {
+          groups[item.prediction_time] = [];
+        }
+        groups[item.prediction_time].push(item);
+      });
+
+      // Now iterate through each group and calculate deltas
+      Object.keys(groups).forEach(predTime => {
+        const groupRecords = groups[predTime];
+        
+        groupRecords.forEach((item, idx) => {
+          const tempVal = parseFloat(item.temperature) || 0;
+          const windVal = parseFloat(item.wind_speed) || 0;
+          const rainVal = parseFloat(item.rainfall) || 0;
+
+          let tempDeltaPrev = 0;
+          let tempDeltaOrigin = 0;
+          let windDeltaPrev = 0;
+          let windDeltaOrigin = 0;
+          let rainDeltaPrev = 0;
+          let rainDeltaOrigin = 0;
+
+          if (idx > 0) {
+            const prev = groupRecords[idx - 1];
+            const origin = groupRecords[0];
+
+            tempDeltaPrev = tempVal - (parseFloat(prev.temperature) || 0);
+            tempDeltaOrigin = tempVal - (parseFloat(origin.temperature) || 0);
+
+            windDeltaPrev = windVal - (parseFloat(prev.wind_speed) || 0);
+            windDeltaOrigin = windVal - (parseFloat(origin.wind_speed) || 0);
+
+            rainDeltaPrev = rainVal - (parseFloat(prev.rainfall) || 0);
+            rainDeltaOrigin = rainVal - (parseFloat(origin.rainfall) || 0);
+          }
+
+          // Format timestamps for display
+          const formattedPredTime = new Date(item.prediction_time).toLocaleString('vi-VN');
+          const formattedUpdateTime = new Date(item.update_time).toLocaleString('vi-VN');
+
+          csvRows.push([
+            formattedPredTime,
+            formattedUpdateTime.replace(/,/g, ''),
+            tempVal,
+            idx === 0 ? 0 : tempDeltaPrev.toFixed(1),
+            idx === 0 ? 0 : tempDeltaOrigin.toFixed(1),
+            windVal,
+            idx === 0 ? 0 : windDeltaPrev.toFixed(1),
+            idx === 0 ? 0 : windDeltaOrigin.toFixed(1),
+            rainVal,
+            idx === 0 ? 0 : rainDeltaPrev.toFixed(1),
+            idx === 0 ? 0 : rainDeltaOrigin.toFixed(1),
+            item.spray_rating || 'N/A',
+            item.temp_spray_rating || 'GOOD',
+            item.wind_spray_rating || 'GOOD',
+            item.tcc_spray_rating || 'GOOD',
+            item.delta_t_spray_rating || 'GOOD'
+          ]);
+        });
+      });
+
+      const csvContent = "\uFEFF" + csvRows.map(e => e.map(val => `"${val}"`).join(",")).join("\r\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      
+      const fileDate = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+      link.setAttribute("download", `bao_cao_toan_bo_du_bao_ngay_${fileDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Error exporting all forecast data:', err);
+      alert('Lỗi xuất toàn bộ dữ liệu: ' + err.message);
+    } finally {
+      setIsExportingAll(false);
+    }
   };
 
   // Filter hourly data for the selected day in Spray Grid
@@ -604,22 +726,41 @@ export default function App() {
                       </select>
                     </div>
 
-                    <button
-                      onClick={handleExportCSV}
-                      className="tab-btn active"
-                      style={{
-                        padding: '10px 20px',
-                        fontSize: '0.9rem',
-                        background: 'var(--accent)',
-                        boxShadow: '0 4px 20px rgba(6, 182, 212, 0.15)',
-                        border: 'none',
-                        color: '#fff',
-                        cursor: 'pointer',
-                        borderRadius: 'var(--radius-sm)'
-                      }}
-                    >
-                      Xuất dữ liệu lịch sử (CSV)
-                    </button>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button
+                        onClick={handleExportCSV}
+                        className="tab-btn active"
+                        style={{
+                          padding: '10px 20px',
+                          fontSize: '0.9rem',
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid var(--glass-border)',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          borderRadius: 'var(--radius-sm)'
+                        }}
+                      >
+                        Xuất mốc giờ này (CSV)
+                      </button>
+
+                      <button
+                        onClick={handleExportAllCSV}
+                        disabled={isExportingAll}
+                        className="tab-btn active"
+                        style={{
+                          padding: '10px 20px',
+                          fontSize: '0.9rem',
+                          background: 'var(--primary)',
+                          boxShadow: '0 4px 20px var(--primary-glow)',
+                          border: 'none',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          borderRadius: 'var(--radius-sm)'
+                        }}
+                      >
+                        {isExportingAll ? 'Đang trích xuất...' : 'Xuất toàn bộ dữ liệu (CSV)'}
+                      </button>
+                    </div>
                   </div>
 
                   {evolutionData.length > 0 ? (
