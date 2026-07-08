@@ -10,17 +10,17 @@ Sơ đồ khối thể hiện sự tương tác giữa dịch vụ Axistream, ti
 
 ```mermaid
 graph TD
-    subgraph Axisstream Cloud
+    subgraph "Axisstream Cloud"
         API[Axisstream API Endpoint]
     end
-    subgraph Go Collector Daemon (Backend)
+    subgraph "Go Collector Daemon (Backend)"
         Client[API Client - Chrome Simulation] --> Parser[Data Parser & Cleaner]
         Parser --> SQL[Simple Protocol Connection]
     end
-    subgraph Supabase Database
+    subgraph "Supabase Database"
         DB[(PostgreSQL Database)]
     end
-    subgraph Client UI (ReactJS Frontend)
+    subgraph "Client UI (ReactJS Frontend)"
         React[ReactJS Web App] --> Recharts[Charts & Data Visualizer]
         React --> Exporter[CSV Data Exporter]
     end
