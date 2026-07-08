@@ -133,6 +133,11 @@ func runSync(apiClient *client.APIClient, dbClient *db.DBClient, cfg *config.Con
 	}
 
 	log.Printf("Success! Retrieved forecast updateTime: %s for Location: %s\n", forecast.UpdateTime, forecast.Location)
+	
+	// Override the updateTime with the current local time of the collector run
+	// to ensure a strict 1-hour resolution history record without ON CONFLICT DO NOTHING dropouts.
+	forecast.UpdateTime = time.Now().Truncate(time.Minute).Format(time.RFC3339)
+
 	log.Printf("Parsing and saving forecast data to Supabase (Hourly: %d records, Daily: %d records)...\n", len(forecast.HourlyData), len(forecast.DailyData))
 
 	// Save to Supabase
