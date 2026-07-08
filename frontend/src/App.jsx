@@ -82,7 +82,6 @@ export default function App() {
       
       if (fallbackTimes) {
         const unique = [...new Set(fallbackTimes.map(item => item.prediction_time))];
-        // Filter unique list to only times that actually have multiple predictions in DB (more than 1 run)
         setPredictionTimesList(unique.slice(0, 40)); 
         if (unique.length > 0) {
           setSelectedPredictionTime(unique[0]);
@@ -114,13 +113,44 @@ export default function App() {
 
       if (error) throw error;
       
-      const formatted = (data || []).map(item => {
+      const formatted = (data || []).map((item, idx) => {
         const runTime = new Date(item.update_time);
+        const tempVal = parseFloat(item.temperature) || 0;
+        const windVal = parseFloat(item.wind_speed) || 0;
+        const rainVal = parseFloat(item.rainfall) || 0;
+        
+        let tempDeltaPrev = 0;
+        let tempDeltaOrigin = 0;
+        let windDeltaPrev = 0;
+        let windDeltaOrigin = 0;
+        let rainDeltaPrev = 0;
+        let rainDeltaOrigin = 0;
+
+        if (idx > 0) {
+          const prev = data[idx - 1];
+          const origin = data[0];
+          
+          tempDeltaPrev = tempVal - (parseFloat(prev.temperature) || 0);
+          tempDeltaOrigin = tempVal - (parseFloat(origin.temperature) || 0);
+          
+          windDeltaPrev = windVal - (parseFloat(prev.wind_speed) || 0);
+          windDeltaOrigin = windVal - (parseFloat(origin.wind_speed) || 0);
+          
+          rainDeltaPrev = rainVal - (parseFloat(prev.rainfall) || 0);
+          rainDeltaOrigin = rainVal - (parseFloat(origin.rainfall) || 0);
+        }
+
         return {
           runTimeStr: runTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' (' + runTime.toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }) + ')',
-          'Nhiệt độ (°C)': parseFloat(item.temperature),
-          'Sức gió (km/h)': parseFloat(item.wind_speed),
-          'Lượng mưa (mm)': parseFloat(item.rainfall),
+          temp: tempVal,
+          tempDeltaPrev: tempDeltaPrev,
+          tempDeltaOrigin: tempDeltaOrigin,
+          wind: windVal,
+          windDeltaPrev: windDeltaPrev,
+          windDeltaOrigin: windDeltaOrigin,
+          rain: rainVal,
+          rainDeltaPrev: rainDeltaPrev,
+          rainDeltaOrigin: rainDeltaOrigin,
           sprayRating: item.spray_rating
         };
       });
@@ -171,6 +201,59 @@ export default function App() {
     return 'var(--error)';
   };
 
+  // Export predictions and deltas to Excel/CSV
+  const handleExportCSV = () => {
+    if (evolutionData.length === 0) return;
+    
+    const csvRows = [
+      [
+        'Target Prediction Time',
+        'Update Time (Run Time)',
+        'Predicted Temp (C)',
+        'Temp Delta vs Previous Run (C)',
+        'Temp Delta vs First Run (C)',
+        'Predicted Wind Speed (km/h)',
+        'Wind Delta vs Previous Run (km/h)',
+        'Wind Delta vs First Run (km/h)',
+        'Predicted Rainfall (mm)',
+        'Rain Delta vs Previous Run (mm)',
+        'Rain Delta vs First Run (mm)',
+        'Spray Rating'
+      ]
+    ];
+
+    evolutionData.forEach((item, idx) => {
+      csvRows.push([
+        selectedPredictionTime,
+        item.runTimeStr.replace(/,/g, ''),
+        item.temp,
+        idx === 0 ? 0 : item.tempDeltaPrev.toFixed(1),
+        idx === 0 ? 0 : item.tempDeltaOrigin.toFixed(1),
+        item.wind,
+        idx === 0 ? 0 : item.windDeltaPrev.toFixed(1),
+        idx === 0 ? 0 : item.windDeltaOrigin.toFixed(1),
+        item.rain,
+        idx === 0 ? 0 : item.rainDeltaPrev.toFixed(1),
+        idx === 0 ? 0 : item.rainDeltaOrigin.toFixed(1),
+        item.sprayRating
+      ]);
+    });
+
+    const csvContent = "\uFEFF" + csvRows.map(e => e.map(val => `"${val}"`).join(",")).join("\r\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    
+    const formattedPredTime = new Date(selectedPredictionTime).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' }).replace(/\//g, '-');
+    const formattedHour = new Date(selectedPredictionTime).getHours();
+    
+    link.setAttribute("download", `lich_su_du_bao_target_${formattedHour}h_ngay_${formattedPredTime}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filter hourly data for the selected day in Spray Grid
   const sprayHourlyFiltered = hourlyData.filter(h => {
     if (!selectedSprayDay) return false;
@@ -189,11 +272,18 @@ export default function App() {
 
   return (
     <div className="dashboard-container">
-      {/* Header */}
+      {/* Header with TanBao AgTech Logo */}
       <header className="header-wrapper">
-        <div className="title-section">
-          <h1>Jane's Weather Forecast Dashboard</h1>
-          <p>Mô hình dự báo thời tiết 6 ngày chuyên sâu dành cho hoạt động nông nghiệp</p>
+        <div className="title-section" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <img 
+            src="/logo.png" 
+            alt="TanBao AgTech Logo" 
+            style={{ height: '65px', width: 'auto', objectFit: 'contain', background: 'rgba(255,255,255,0.02)', padding: '6px', borderRadius: '8px' }} 
+          />
+          <div>
+            <h1 style={{ margin: 0 }}>Jane's Weather Forecast Dashboard</h1>
+            <p>Mô hình dự báo thời tiết 6 ngày chuyên sâu dành cho hoạt động nông nghiệp</p>
+          </div>
         </div>
         
         {isLoading ? (
@@ -410,7 +500,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Tab 3: Detailed Spray Suitability Table (Recreating Image 3 Grid) */}
+              {/* Tab 3: Detailed Spray Suitability Table */}
               {activeTab === 'spray' && (
                 <div>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '8px' }}>
@@ -489,28 +579,47 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Mốc giờ dự đoán mục tiêu:</span>
-                    <select
-                      value={selectedPredictionTime}
-                      onChange={(e) => setSelectedPredictionTime(e.target.value)}
+                  <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Mốc giờ dự đoán mục tiêu:</span>
+                      <select
+                        value={selectedPredictionTime}
+                        onChange={(e) => setSelectedPredictionTime(e.target.value)}
+                        style={{
+                          background: 'var(--glass-bg)',
+                          color: '#fff',
+                          border: '1px solid var(--glass-border)',
+                          padding: '8px 16px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontFamily: 'inherit',
+                          fontSize: '0.9rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {predictionTimesList.map(t => (
+                          <option key={t} value={t}>
+                            {new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ngày ' + new Date(t).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={handleExportCSV}
+                      className="tab-btn active"
                       style={{
-                        background: 'var(--glass-bg)',
-                        color: '#fff',
-                        border: '1px solid var(--glass-border)',
-                        padding: '8px 16px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontFamily: 'inherit',
+                        padding: '10px 20px',
                         fontSize: '0.9rem',
-                        cursor: 'pointer'
+                        background: 'var(--accent)',
+                        boxShadow: '0 4px 20px rgba(6, 182, 212, 0.15)',
+                        border: 'none',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        borderRadius: 'var(--radius-sm)'
                       }}
                     >
-                      {predictionTimesList.map(t => (
-                        <option key={t} value={t}>
-                          {new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ngày ' + new Date(t).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
-                        </option>
-                      ))}
-                    </select>
+                      Xuất dữ liệu lịch sử (CSV)
+                    </button>
                   </div>
 
                   {evolutionData.length > 0 ? (
@@ -531,12 +640,18 @@ export default function App() {
                       </div>
 
                       {/* Evolution Table */}
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '16px' }}>Bảng lịch sử biến động dự đoán</h4>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Bảng lịch sử biến động dự đoán</h4>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Chú thích độ lệch: <strong>(Δ Lần cào trước / Δ Lần cào đầu tiên)</strong>
+                        </span>
+                      </div>
+                      
                       <div style={{ overflowX: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                           <thead>
                             <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
-                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Thời điểm nạp (Update Time)</th>
+                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Thời điểm cào dữ liệu (Update Time)</th>
                               <th style={{ padding: '14px 20px', fontWeight: 600 }}>Nhiệt độ dự báo</th>
                               <th style={{ padding: '14px 20px', fontWeight: 600 }}>Sức gió dự báo</th>
                               <th style={{ padding: '14px 20px', fontWeight: 600 }}>Lượng mưa dự báo</th>
@@ -544,15 +659,51 @@ export default function App() {
                             </tr>
                           </thead>
                           <tbody>
-                            {evolutionData.map((item, idx) => (
-                              <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                <td style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>{item.runTimeStr}</td>
-                                <td style={{ padding: '12px 20px', fontWeight: 700 }}>{item['Nhiệt độ (°C)']}°C</td>
-                                <td style={{ padding: '12px 20px' }}>{item['Sức gió (km/h)']} km/h</td>
-                                <td style={{ padding: '12px 20px', color: 'var(--accent)' }}>{item['Lượng mưa (mm)']} mm</td>
-                                <td style={{ padding: '12px 20px', color: getRatingColor(item.sprayRating), fontWeight: 700 }}>{item.sprayRating}</td>
-                              </tr>
-                            ))}
+                            {evolutionData.map((item, idx) => {
+                              const formatDelta = (val) => {
+                                if (idx === 0) return '';
+                                if (val > 0) return `+${val.toFixed(1)}`;
+                                if (val < 0) return `${val.toFixed(1)}`;
+                                return '0';
+                              };
+                              const tempPrevStr = formatDelta(item.tempDeltaPrev);
+                              const tempOriginStr = formatDelta(item.tempDeltaOrigin);
+                              const windPrevStr = formatDelta(item.windDeltaPrev);
+                              const windOriginStr = formatDelta(item.windDeltaOrigin);
+                              const rainPrevStr = formatDelta(item.rainDeltaPrev);
+                              const rainOriginStr = formatDelta(item.rainDeltaOrigin);
+
+                              return (
+                                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                  <td style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>{item.runTimeStr}</td>
+                                  <td style={{ padding: '12px 20px', fontWeight: 700 }}>
+                                    {item.temp}°C
+                                    {idx > 0 && (
+                                      <span style={{ fontSize: '0.75rem', marginLeft: '6px', fontWeight: 500 }}>
+                                        (<span style={{ color: item.tempDeltaPrev >= 0 ? 'var(--success)' : 'var(--error)' }}>{tempPrevStr}</span> / <span style={{ color: item.tempDeltaOrigin >= 0 ? 'var(--success)' : 'var(--error)' }}>{tempOriginStr}</span>)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 20px' }}>
+                                    {item.wind} km/h
+                                    {idx > 0 && (
+                                      <span style={{ fontSize: '0.75rem', marginLeft: '6px' }}>
+                                        (<span style={{ color: item.windDeltaPrev >= 0 ? 'var(--success)' : 'var(--error)' }}>{windPrevStr}</span> / <span style={{ color: item.windDeltaOrigin >= 0 ? 'var(--success)' : 'var(--error)' }}>{windOriginStr}</span>)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 20px', color: 'var(--accent)' }}>
+                                    {item.rain} mm
+                                    {idx > 0 && (
+                                      <span style={{ fontSize: '0.75rem', marginLeft: '6px' }}>
+                                        (<span style={{ color: item.rainDeltaPrev >= 0 ? 'var(--success)' : 'var(--error)' }}>{rainPrevStr}</span> / <span style={{ color: item.rainDeltaOrigin >= 0 ? 'var(--success)' : 'var(--error)' }}>{rainOriginStr}</span>)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 20px', color: getRatingColor(item.sprayRating), fontWeight: 700 }}>{item.sprayRating}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
