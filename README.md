@@ -1,101 +1,174 @@
 # Jane's Weather Forecast Dashboard (03_JaneWeather)
 
-This project connects to the Axisstream Jane's Weather API, retrieves 6-day weather forecasts periodically, normalizes and stores the historical predictions in Supabase, and visualizes them using a premium ReactJS + Framer Motion dashboard.
+Dự án này thực hiện tự động kết nối với API Jane's Weather của Axisstream, định kỳ thu thập dự báo thời tiết 6 ngày tiếp theo, chuẩn hóa và lưu trữ lịch sử các phiên dự đoán vào cơ sở dữ liệu Supabase, đồng thời trực quan hóa dữ liệu qua bảng điều khiển (Dashboard) ReactJS cao cấp (Trắng - Xanh lá).
 
-## Project Structure
+---
+
+## 1. Sơ đồ khối hệ thống (System Architecture)
+
+Sơ đồ khối thể hiện sự tương tác giữa dịch vụ Axistream, tiến trình chạy ngầm Go Backend, cơ sở dữ liệu Supabase và giao diện ReactJS người dùng.
+
+```mermaid
+graph TD
+    subgraph Axisstream Cloud
+        API[Axisstream API Endpoint]
+    end
+    subgraph Go Collector Daemon (Backend)
+        Client[API Client - Chrome Simulation] --> Parser[Data Parser & Cleaner]
+        Parser --> SQL[Simple Protocol Connection]
+    end
+    subgraph Supabase Database
+        DB[(PostgreSQL Database)]
+    end
+    subgraph Client UI (ReactJS Frontend)
+        React[ReactJS Web App] --> Recharts[Charts & Data Visualizer]
+        React --> Exporter[CSV Data Exporter]
+    end
+
+    API -->|Raw Weather JSON| Client
+    SQL -->|Store normalized records| DB
+    DB -->|Query weather runs & predictions| React
+```
+
+---
+
+## 2. Luồng dữ liệu phân phối (Data Distribution Flow)
+
+Sơ đồ phân rã dữ liệu thô nhận từ API thành các cấu trúc bảng chuyên biệt trong cơ sở dữ liệu để phục vụ việc phân tích độ lệch chênh lệch.
+
+```mermaid
+graph LR
+    Raw[Raw JSON Response từ API] -->|Trích xuất trực tiếp| Root[Root / recentData]
+    Raw -->|Trích xuất trực tiếp| HourlyList[hourlyData Array]
+    Raw -->|Trích xuất trực tiếp| DailyList[dailyData Array]
+
+    Root -->|Lưu thông số thời gian thực| RunTable[(weather_forecast_run)]
+    HourlyList -->|Lưu các giờ còn lại trong ngày| HourlyTable[(hourly_forecast)]
+    DailyList -->|Lưu tóm tắt ngày nhiệt độ Max/Min| DailyTable[(daily_forecast)]
+    DailyList -->|Duyệt đệ quy lấy 24h tương lai| HourlyTable
+```
+
+---
+
+## 3. Sơ đồ giải thuật đồng bộ (Sync Algorithm Flow Chart)
+
+Tiến trình xử lý của Go Collector Daemon đảm bảo an toàn kết nối, tự gia hạn Token và ghi dữ liệu toàn vẹn bằng SQL Transaction.
+
+```mermaid
+flowchart TD
+    Start([Bắt đầu chu kỳ đồng bộ]) --> CheckToken{Kiểm tra Token local?}
+    CheckToken -->|Chưa có / Hết hạn| Login[Đăng nhập Axistream API để lấy Token mới]
+    Login --> SaveToken[Lưu Token vào configs/token.json]
+    SaveToken --> Fetch[Gửi request GET lấy dữ liệu thời tiết]
+    CheckToken -->|Còn hạn| Fetch
+    
+    Fetch --> Parse[Trích xuất dữ liệu thô và làm sạch số liệu]
+    Parse --> DBConn{Kết nối Database qua Simple Protocol?}
+    DBConn -->|Thất bại| Error([Ghi log lỗi & Kết thúc])
+    DBConn -->|Thành công| Tx[Khởi tạo Transaction SQL]
+    
+    Tx --> SaveRun[Lưu thông tin metadata & recentData vào weather_forecast_run]
+    SaveRun --> ExtractHours[Gộp hourlyData ngoài & nested hourlyData trong dailyData]
+    ExtractHours --> SaveHourly[Lưu tất cả bản ghi vào bảng hourly_forecast]
+    SaveHourly --> SaveDaily[Lưu tóm tắt ngày vào bảng daily_forecast]
+    SaveDaily --> Commit{Commit Transaction?}
+    
+    Commit -->|Thành công| Success([Hoàn tất chu kỳ - Chờ 1 giờ])
+    Commit -->|Thất bại| Rollback[Rollback Transaction]
+    Rollback --> Error
+```
+
+---
+
+## 4. Cấu trúc thư mục (Project Structure)
 
 ```
 03_JaneWeather/
 ├── backend/                   # Go Backend Collector Daemon
 │   ├── cmd/
 │   │   └── collector/
-│   │       └── main.go        # Entry point containing daemon loop and CLI flags
+│   │       └── main.go        # Điểm khởi chạy daemon và xử lý CLI flags
 │   ├── internal/
 │   │   ├── client/
-│   │   │   ├── client.go      # HTTP client utilizing Chrome headers & token caching
-│   │   │   └── jwt.go         # Parses base64 JWT locally to check expiration
+│   │   │   ├── client.go      # HTTP client giả lập Chrome & tự quản lý Token
+│   │   │   └── jwt.go         # Trình phân tích JWT nội bộ để kiểm tra hạn sử dụng
 │   │   ├── config/
-│   │   │   └── config.go      # Parses .env file to load variables
+│   │   │   └── config.go      # Đọc và cấu hình biến môi trường từ .env
 │   │   ├── db/
-│   │   │   └── db.go          # Supabase client with numeric string parsers & transactions
+│   │   │   └── db.go          # Thiết lập kết nối Simple Protocol & xử lý dữ liệu DB
 │   │   └── model/
-│   │       └── model.go       # Go models mapping to Jane's Weather API
-│   ├── .env                   # [Git Ignored] Local API and DB credentials
+│   │       └── model.go       # Cấu trúc Struct Go khớp với JSON API Axistream
+│   ├── .env                   # [Git Ignored] Chứa cấu hình tài khoản & database nội bộ
 │   ├── go.mod                 # Go module descriptor
 │   └── go.sum                 # Go dependency checksums
 └── frontend/                  # ReactJS Frontend (Vite)
     ├── src/
-    │   ├── App.jsx            # React Dashboard visualizer (fetches data from Supabase)
-    │   ├── index.css          # Vanilla CSS design system (Obsidian glassmorphic theme)
+    │   ├── App.jsx            # Giao diện Dashboard chính (kết nối Supabase)
+    │   ├── index.css          # Hệ thống CSS (Giao diện Trắng - Xanh lá)
     │   ├── main.jsx           # Mounting wrapper
-    │   └── supabaseClient.js  # Supabase public connection configurations
+    │   └── supabaseClient.js  # Cấu hình kết nối Supabase Client
     ├── index.html             # HTML layout template
     ├── package.json           # npm configuration
-    └── vite.config.js         # Vite configurations
+    └── vite.config.js         # Cấu hình Vite
 ```
 
 ---
 
-## 1. Supabase Database Schema
+## 5. Cấu hình cơ sở dữ liệu Supabase (PostgreSQL)
 
-The database tables are hosted on **AWS Sydney (ap-southeast-2)** and have already been initialized with the following structure:
+Cơ sở dữ liệu được thiết lập trên **AWS Sydney (ap-southeast-2)** kết nối qua cổng **6543** (PgBouncer Pooler).
 
-- **`weather_forecast_run`**: Logs the details of each forecast fetch (`location`, `update_time`, `created_at`).
-- **`hourly_forecast`**: Stores hour-by-hour predictions. constrained by `(update_time, prediction_time)` to track forecast shifts over time.
-- **`daily_forecast`**: Stores 6-day daily summaries. constrained by `(update_time, prediction_date)`.
+*   **`weather_forecast_run`**: Lưu giữ metadata các lần cào dữ liệu thành công (`location`, `update_time`, `temperature`, `pressure`, `total_precipitation`, `wind_speed`, `humidity`, `wind_direction_compass`, `wind_direction_angle`, `uv_index`, `uv_level`, `dew_point`, `delta_t`, `fog_probability`, `spray_rating`).
+*   **`hourly_forecast`**: Lưu trữ dự báo chi tiết từng giờ. Ràng buộc UNIQUE trên `(update_time, prediction_time)` để phân tích độ dịch chuyển.
+*   **`daily_forecast`**: Lưu trữ tóm tắt chung theo ngày. Ràng buộc UNIQUE trên `(update_time, prediction_date)`.
 
 ---
 
-## 2. Running the Backend Collector (Go)
+## 6. Hướng dẫn vận hành Backend (Go)
 
-The Go backend handles automatic retrieval and normalization. Open a terminal in `03_JaneWeather/backend`:
+Di chuyển vào thư mục `03_JaneWeather/backend`:
 
-### Configure Credentials
-Make sure the `backend/.env` file contains your credentials:
+### Thiết lập biến môi trường (Environment Variables)
+Tạo tệp tin `.env` bên trong thư mục `backend/` theo mẫu an toàn dưới đây:
 ```env
-AXISTREAM_EMAIL=huynh@tanbaocorp.vn
-AXISTREAM_PASSWORD=Tanbao@123
-AXISTREAM_PROJECT_ID=1b73e2fe-1e6c-46c6-8534-82c0e03be283
-AXISTREAM_PROVIDER_ID=2db91bf4-4f68-4d23-bad4-6687f8e1975e
-SUPABASE_DB_URL=postgresql://postgres.rtemlpaeyjpbktpqqtwv:0908904895Phuc@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=require
+AXISTREAM_EMAIL=your-email@domain.com
+AXISTREAM_PASSWORD=your-password
+AXISTREAM_PROJECT_ID=your-project-uuid-from-axistream
+AXISTREAM_PROVIDER_ID=your-provider-uuid-from-axistream
+SUPABASE_DB_URL=postgresql://postgres.rtemlpaeyjpbktpqqtwv:your-supabase-password@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=require
 ```
+> [!IMPORTANT]
+> Tuyệt đối không commit tệp tin `.env` chứa mật khẩu thật lên GitHub công khai.
 
-### Run One-shot Sync (Runs once and exits)
+### Chạy đồng bộ một lần (One-shot Mode)
 ```bash
 go run ./cmd/collector
 ```
 
-### Run in Daemon Mode (Runs continuously in the background)
-Runs every 1 hour by default (recommended):
+### Chạy dạng tiến trình ngầm (Daemon Mode)
+Mặc định chu kỳ quét dữ liệu là 1 tiếng (khuyên dùng):
 ```bash
 go run ./cmd/collector -daemon
 ```
 
-To customize the interval (e.g., sync every 30 minutes):
+Tùy chỉnh khoảng thời gian quét (ví dụ: quét dữ liệu 30 phút một lần):
 ```bash
 go run ./cmd/collector -daemon -interval 30m
 ```
 
 ---
 
-## 3. Running the Frontend (ReactJS)
+## 7. Hướng dẫn vận hành Frontend (ReactJS)
 
-The React client communicates directly with Supabase via HTTPS using the publishable public key. Open a terminal in `03_JaneWeather/frontend`:
+Di chuyển vào thư mục `03_JaneWeather/frontend`:
 
-### Start Development Server
+### Chạy môi trường nhà phát triển (Development Mode)
 ```bash
 npm run dev
 ```
 
-### Compile Production Build
+### Biên dịch mã nguồn sản xuất (Production Build)
 ```bash
 npm run build
 ```
-
----
-
-## 4. Key Implementation Highlights
-
-- **Stealth Requesting (Bot Evasion)**: Configured with standard desktop Windows Chrome headers and automated session token recycling to prevent triggering Cloudflare/WAF rate blocks.
-- **Data Normalization & Cleaning**: Raw strings like `"27°"`, `"71 %"`, and `"0.33 mm"` are cleaned into float/int numeric datatypes on database entry. This allows math operations, averages, and chart plotting to work natively.
-- **Model Shift Tracking**: Because we keep all hourly forecast history, the **"Historical Accuracy Analysis"** tab in the UI plots a multi-line comparison of temperature forecast curves from the last 3 sync runs. This visually demonstrates how the climate model adjusts its predictions as the target hour approaches.
+Mã nguồn tĩnh sẽ được xuất ra thư mục `dist/`, sẵn sàng được nạp trực tiếp qua Go Web Server.
