@@ -142,7 +142,7 @@ export default function App() {
         }
 
         return {
-          runTimeStr: runTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' (' + runTime.toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }) + ')',
+          runTimeStr: runTime.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }) + ' (' + runTime.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', month: 'numeric', day: 'numeric' }) + ')',
           temp: tempVal,
           tempDeltaPrev: tempDeltaPrev,
           tempDeltaOrigin: tempDeltaOrigin,
@@ -176,6 +176,7 @@ export default function App() {
   // Format date to short readable
   const formatDateLabel = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
       weekday: 'short',
       day: 'numeric',
       month: 'numeric'
@@ -246,7 +247,7 @@ export default function App() {
     const link = document.createElement("a");
     link.setAttribute("href", url);
     
-    const formattedPredTime = new Date(selectedPredictionTime).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' }).replace(/\//g, '-');
+    const formattedPredTime = new Date(selectedPredictionTime).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'numeric' }).replace(/\//g, '-');
     const formattedHour = new Date(selectedPredictionTime).getHours();
     
     link.setAttribute("download", `lich_su_du_bao_target_${formattedHour}h_ngay_${formattedPredTime}.csv`);
@@ -332,9 +333,9 @@ export default function App() {
             rainDeltaOrigin = rainVal - (parseFloat(origin.rainfall) || 0);
           }
 
-          // Format timestamps for display
-          const formattedPredTime = new Date(item.prediction_time).toLocaleString('vi-VN');
-          const formattedUpdateTime = new Date(item.update_time).toLocaleString('vi-VN');
+          // Format timestamps for display (forced to Vietnam timezone)
+          const formattedPredTime = new Date(item.prediction_time).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+          const formattedUpdateTime = new Date(item.update_time).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
           csvRows.push([
             formattedPredTime,
@@ -363,7 +364,7 @@ export default function App() {
       const link = document.createElement("a");
       link.setAttribute("href", url);
       
-      const fileDate = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+      const fileDate = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }).replace(/\//g, '-');
       link.setAttribute("download", `bao_cao_toan_bo_du_bao_ngay_${fileDate}.csv`);
       document.body.appendChild(link);
       link.click();
@@ -385,7 +386,7 @@ export default function App() {
 
   // Chart data formatters
   const chartHourlyData = hourlyData.map(h => ({
-    time: new Date(h.prediction_time).toLocaleTimeString('vi-VN', { hour: '2-digit' }) + ' ' + new Date(h.prediction_time).toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }),
+    time: new Date(h.prediction_time).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }),
     'Nhiệt độ (°C)': parseFloat(h.temperature) || 0,
     'Độ ẩm (%)': parseFloat(h.humidity) || 0,
     'Lượng mưa (mm)': parseFloat(h.rainfall) || 0,
@@ -444,7 +445,7 @@ export default function App() {
           <div className="sidebar-panel">
             <div className="glass-card current-card">
               <div className="current-card-content">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContext: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                   <MapPin size={14} />
                   <span>{latestRun.location}</span>
                 </div>
@@ -503,7 +504,7 @@ export default function App() {
                       {idx === 0 ? 'Mới nhất' : `Bản tin #${historicalRuns.length - idx}`}
                     </span>
                     <span style={{ color: 'var(--text-muted)' }}>
-                      {new Date(run.update_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ({new Date(run.update_time).toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' })})
+                      {new Date(run.update_time).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })} ({new Date(run.update_time).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', month: 'numeric', day: 'numeric' })})
                     </span>
                   </div>
                 ))}
@@ -566,7 +567,7 @@ export default function App() {
                           <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} tickFormatter={(tick) => tick.split(' ')[0]} />
                           <YAxis yAxisId="left" stroke="var(--primary)" fontSize={12} domain={['dataMin - 2', 'dataMax + 2']} />
                           <YAxis yAxisId="right" orientation="right" stroke="var(--secondary)" fontSize={12} domain={[0, 100]} />
-                          <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#f0f7f3', borderColor: 'var(--glass-border)', color: '#0f172a' }} />
                           <Legend />
                           <Area yAxisId="left" type="monotone" name="Nhiệt độ (°C)" dataKey="Nhiệt độ (°C)" stroke="var(--primary)" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={2} />
                           <Area yAxisId="right" type="monotone" name="Mây che phủ (%)" dataKey="Mây che phủ (%)" stroke="var(--secondary)" fillOpacity={1} fill="url(#colorTcc)" strokeWidth={1} />
@@ -583,10 +584,10 @@ export default function App() {
                     <div style={{ width: '100%', height: 240 }}>
                       <ResponsiveContainer>
                         <BarChart data={chartHourlyData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                           <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} tickFormatter={(tick) => tick.split(' ')[0]} />
                           <YAxis stroke="var(--accent)" fontSize={12} />
-                          <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#f0f7f3', borderColor: 'var(--glass-border)', color: '#0f172a' }} />
                           <Bar dataKey="Lượng mưa (mm)" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -602,6 +603,7 @@ export default function App() {
                     <div className="daily-row" key={idx}>
                       <div className="daily-date">
                         {new Date(d.prediction_date).toLocaleDateString('vi-VN', {
+                          timeZone: 'Asia/Ho_Chi_Minh',
                           weekday: 'long',
                           month: 'numeric',
                           day: 'numeric'
@@ -642,7 +644,7 @@ export default function App() {
                     <div style={{ overflowX: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                         <thead>
-                          <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
+                          <tr style={{ background: 'rgba(16,185,129,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
                             <th style={{ padding: '16px 20px', fontWeight: 600 }}>Thời gian</th>
                             <th style={{ padding: '16px 20px', fontWeight: 600 }}>Đánh giá chung</th>
                             <th style={{ padding: '16px 20px', fontWeight: 600 }}>Nhiệt độ</th>
@@ -653,9 +655,9 @@ export default function App() {
                         </thead>
                         <tbody>
                           {sprayHourlyFiltered.map((h, idx) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(16,185,129,0.05)' }}>
                               <td style={{ padding: '14px 20px', fontWeight: 500 }}>
-                                {new Date(h.prediction_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(h.prediction_time).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}
                               </td>
                               <td style={{ padding: '14px 20px', color: getRatingColor(h.spray_rating), fontWeight: 700 }}>
                                 {h.spray_rating}
@@ -692,7 +694,7 @@ export default function App() {
               {/* Tab 4: Target-hour Historical Prediction Evolution */}
               {activeTab === 'accuracy' && (
                 <div>
-                  <div className="glass-card" style={{ background: 'rgba(59, 130, 246, 0.05)', borderColor: 'rgba(59, 130, 246, 0.1)', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div className="glass-card" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.1)', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <Info style={{ color: 'var(--primary)', flexShrink: 0 }} size={20} />
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                       <strong>Trực quan hóa sự thay đổi dự báo:</strong> Chọn một mốc giờ cụ thể dưới đây. 
@@ -708,8 +710,8 @@ export default function App() {
                         value={selectedPredictionTime}
                         onChange={(e) => setSelectedPredictionTime(e.target.value)}
                         style={{
-                          background: 'var(--glass-bg)',
-                          color: '#fff',
+                          background: '#ffffff',
+                          color: 'var(--text-primary)',
                           border: '1px solid var(--glass-border)',
                           padding: '8px 16px',
                           borderRadius: 'var(--radius-sm)',
@@ -720,7 +722,7 @@ export default function App() {
                       >
                         {predictionTimesList.map(t => (
                           <option key={t} value={t}>
-                            {new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ngày ' + new Date(t).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
+                            {new Date(t).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }) + ' ngày ' + new Date(t).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'numeric' })}
                           </option>
                         ))}
                       </select>
@@ -733,9 +735,9 @@ export default function App() {
                         style={{
                           padding: '10px 20px',
                           fontSize: '0.9rem',
-                          background: 'rgba(255,255,255,0.05)',
+                          background: 'rgba(16, 185, 129, 0.05)',
                           border: '1px solid var(--glass-border)',
-                          color: '#fff',
+                          color: 'var(--secondary)',
                           cursor: 'pointer',
                           borderRadius: 'var(--radius-sm)'
                         }}
@@ -751,7 +753,7 @@ export default function App() {
                           padding: '10px 20px',
                           fontSize: '0.9rem',
                           background: 'var(--primary)',
-                          boxShadow: '0 4px 20px var(--primary-glow)',
+                          boxShadow: '0 4px 16px rgba(16, 185, 129, 0.2)',
                           border: 'none',
                           color: '#fff',
                           cursor: 'pointer',
@@ -769,10 +771,10 @@ export default function App() {
                       <div style={{ width: '100%', height: 280, marginBottom: '30px' }}>
                         <ResponsiveContainer>
                           <LineChart data={evolutionData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                             <XAxis dataKey="runTimeStr" stroke="var(--text-muted)" fontSize={11} />
                             <YAxis stroke="var(--text-secondary)" fontSize={12} />
-                            <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#f0f7f3', borderColor: 'var(--glass-border)', color: '#0f172a' }} />
                             <Legend />
                             <Line type="monotone" name="Nhiệt độ dự báo (°C)" dataKey="Nhiệt độ (°C)" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4 }} />
                             <Line type="monotone" name="Sức gió dự báo (km/h)" dataKey="Sức gió (km/h)" stroke="var(--secondary)" strokeWidth={2} dot={{ r: 3 }} />
@@ -791,7 +793,7 @@ export default function App() {
                       <div style={{ overflowX: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                           <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
+                            <tr style={{ background: 'rgba(16,185,129,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
                               <th style={{ padding: '14px 20px', fontWeight: 600 }}>Thời điểm cào dữ liệu (Update Time)</th>
                               <th style={{ padding: '14px 20px', fontWeight: 600 }}>Nhiệt độ dự báo</th>
                               <th style={{ padding: '14px 20px', fontWeight: 600 }}>Sức gió dự báo</th>
@@ -815,7 +817,7 @@ export default function App() {
                               const rainOriginStr = formatDelta(item.rainDeltaOrigin);
 
                               return (
-                                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                <tr key={idx} style={{ borderBottom: '1px solid rgba(16,185,129,0.05)' }}>
                                   <td style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>{item.runTimeStr}</td>
                                   <td style={{ padding: '12px 20px', fontWeight: 700 }}>
                                     {item.temp}°C
