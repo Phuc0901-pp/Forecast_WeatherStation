@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { 
   Sun, Cloud, CloudRain, Wind, Droplets, Compass, Thermometer, 
-  Calendar, TrendingUp, BarChart2, Clock, Database, MapPin, AlertCircle 
+  Calendar, TrendingUp, BarChart2, Clock, Database, MapPin, AlertCircle, Info
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, 
@@ -14,10 +14,17 @@ export default function App() {
   const [hourlyData, setHourlyData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
   const [historicalRuns, setHistoricalRuns] = useState([]);
-  const [comparisonData, setComparisonData] = useState([]);
   const [activeTab, setActiveTab] = useState('hourly');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Spray Suitability States
+  const [selectedSprayDay, setSelectedSprayDay] = useState(null);
+
+  // Historical Prediction Evolution States
+  const [predictionTimesList, setPredictionTimesList] = useState([]);
+  const [selectedPredictionTime, setSelectedPredictionTime] = useState('');
+  const [evolutionData, setEvolutionData] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -43,7 +50,7 @@ export default function App() {
       setLatestRun(latest);
       setHistoricalRuns(runs);
 
-      // 2. Fetch hourly forecast for the latest run
+      // 2. Fetch ALL hourly forecast entries for the latest run
       const { data: hourly, error: hourlyError } = await supabase
         .from('hourly_forecast')
         .select('*')
@@ -62,45 +69,23 @@ export default function App() {
 
       if (dailyError) throw dailyError;
       setDailyData(daily || []);
+      
+      if (daily && daily.length > 0) {
+        setSelectedSprayDay(daily[0].prediction_date);
+      }
 
-      // 4. Fetch historical comparison data
-      // Group the last 3 runs and get their hourly forecasts to compare predictions
-      if (runs.length > 0) {
-        const topRunTimes = runs.slice(0, 3).map(r => r.update_time);
-        const { data: compHourly, error: compError } = await supabase
-          .from('hourly_forecast')
-          .select('update_time, prediction_time, temperature')
-          .in('update_time', topRunTimes)
-          .order('prediction_time', { ascending: true });
-
-        if (!compError && compHourly) {
-          // Format comparison data: group by prediction_time
-          const timeMap = {};
-          compHourly.forEach(item => {
-            const predTime = new Date(item.prediction_time).toLocaleString('vi-VN', {
-              month: 'numeric',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            if (!timeMap[predTime]) {
-              timeMap[predTime] = { time: predTime };
-            }
-            
-            // Format run time for legend
-            const runLabel = new Date(item.update_time).toLocaleTimeString('vi-VN', {
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            const runDate = new Date(item.update_time).toLocaleDateString('vi-VN', {
-              month: 'numeric',
-              day: 'numeric'
-            });
-            const keyName = `Bản tin ${runLabel} (${runDate})`;
-            timeMap[predTime][keyName] = parseFloat(item.temperature);
-          });
-          
-          setComparisonData(Object.values(timeMap).slice(0, 24)); // Compare first 24 hours of predictions
+      // 4. Fallback standard query: Get unique prediction times in chronological order
+      const { data: fallbackTimes } = await supabase
+        .from('hourly_forecast')
+        .select('prediction_time')
+        .order('prediction_time', { ascending: true });
+      
+      if (fallbackTimes) {
+        const unique = [...new Set(fallbackTimes.map(item => item.prediction_time))];
+        // Filter unique list to only times that actually have multiple predictions in DB (more than 1 run)
+        setPredictionTimesList(unique.slice(0, 40)); 
+        if (unique.length > 0) {
+          setSelectedPredictionTime(unique[0]);
         }
       }
 
@@ -109,6 +94,39 @@ export default function App() {
       setError(err.message || 'Lỗi tải dữ liệu thời tiết');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch prediction evolution data when target prediction time changes
+  useEffect(() => {
+    if (selectedPredictionTime) {
+      fetchEvolutionData(selectedPredictionTime);
+    }
+  }, [selectedPredictionTime]);
+
+  const fetchEvolutionData = async (predTime) => {
+    try {
+      const { data, error } = await supabase
+        .from('hourly_forecast')
+        .select('update_time, temperature, wind_speed, rainfall, spray_rating')
+        .eq('prediction_time', predTime)
+        .order('update_time', { ascending: true });
+
+      if (error) throw error;
+      
+      const formatted = (data || []).map(item => {
+        const runTime = new Date(item.update_time);
+        return {
+          runTimeStr: runTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' (' + runTime.toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }) + ')',
+          'Nhiệt độ (°C)': parseFloat(item.temperature),
+          'Sức gió (km/h)': parseFloat(item.wind_speed),
+          'Lượng mưa (mm)': parseFloat(item.rainfall),
+          sprayRating: item.spray_rating
+        };
+      });
+      setEvolutionData(formatted);
+    } catch (err) {
+      console.error('Error fetching evolution:', err);
     }
   };
 
@@ -124,45 +142,50 @@ export default function App() {
     return <Sun className="weather-icon-large" />;
   };
 
-  // Format timestamp to localized readable string
-  const formatTime = (tsStr) => {
-    if (!tsStr) return '';
-    return new Date(tsStr).toLocaleString('vi-VN', {
-      weekday: 'long',
-      month: 'numeric',
+  // Format date to short readable
+  const formatDateLabel = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('vi-VN', {
+      weekday: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'numeric'
     });
   };
 
-  // Fetch recent data fields safely
   const getRecentField = (field, suffix = '') => {
     if (!hourlyData || hourlyData.length === 0) return 'N/A';
-    // Use the first hourly prediction as current conditions
     const current = hourlyData[0];
     const val = current[field];
     return val !== null && val !== undefined ? `${val}${suffix}` : 'N/A';
   };
 
   const getRecentSummary = () => {
-    if (dailyData && dailyData.length > 0) {
-      return dailyData[0].weather_summary;
-    }
-    if (hourlyData && hourlyData.length > 0) {
-      return hourlyData[0].weather_summary;
-    }
+    if (dailyData && dailyData.length > 0) return dailyData[0].weather_summary;
+    if (hourlyData && hourlyData.length > 0) return hourlyData[0].weather_summary;
     return 'Mostly sunny';
   };
 
+  const getRatingColor = (rating) => {
+    const r = (rating || '').toUpperCase();
+    if (r === 'GOOD') return 'var(--success)';
+    if (r === 'MARGINAL') return 'var(--warning)';
+    return 'var(--error)';
+  };
+
+  // Filter hourly data for the selected day in Spray Grid
+  const sprayHourlyFiltered = hourlyData.filter(h => {
+    if (!selectedSprayDay) return false;
+    const predDate = h.prediction_time.split('T')[0];
+    return predDate === selectedSprayDay;
+  });
+
   // Chart data formatters
   const chartHourlyData = hourlyData.map(h => ({
-    time: new Date(h.prediction_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    time: new Date(h.prediction_time).toLocaleTimeString('vi-VN', { hour: '2-digit' }) + ' ' + new Date(h.prediction_time).toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }),
     'Nhiệt độ (°C)': parseFloat(h.temperature) || 0,
     'Độ ẩm (%)': parseFloat(h.humidity) || 0,
     'Lượng mưa (mm)': parseFloat(h.rainfall) || 0,
     'Mây che phủ (%)': parseFloat(h.tcc) || 0
-  })).slice(0, 24); // Show next 24 hours in charts
+  })).slice(0, 48); // Show 48 hours trend
 
   return (
     <div className="dashboard-container">
@@ -250,7 +273,7 @@ export default function App() {
                 <span>Khả năng phun thuốc</span>
                 <Clock size={16} />
               </div>
-              <div className="analytic-val" style={{ color: getRecentField('spray_rating') === 'GOOD' ? 'var(--success)' : 'var(--error)' }}>
+              <div className="analytic-val" style={{ color: getRatingColor(getRecentField('spray_rating')) }}>
                 {getRecentField('spray_rating')}
               </div>
               <span className="analytic-desc">Được tính toán dựa trên mức độ gió và delta T để phun xịt thuốc hiệu quả.</span>
@@ -284,7 +307,7 @@ export default function App() {
                   className={`tab-btn ${activeTab === 'hourly' ? 'active' : ''}`}
                   onClick={() => setActiveTab('hourly')}
                 >
-                  Dự báo 24 giờ
+                  Đồ thị xu hướng 48 giờ
                 </button>
                 <button 
                   className={`tab-btn ${activeTab === 'daily' ? 'active' : ''}`}
@@ -293,37 +316,28 @@ export default function App() {
                   Dự báo 6 ngày tới
                 </button>
                 <button 
+                  className={`tab-btn ${activeTab === 'spray' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('spray')}
+                >
+                  Chi tiết điều kiện phun thuốc
+                </button>
+                <button 
                   className={`tab-btn ${activeTab === 'accuracy' ? 'active' : ''}`}
                   onClick={() => setActiveTab('accuracy')}
                 >
-                  Phân tích dịch chuyển mô hình
+                  Lịch sử thay đổi dự đoán
                 </button>
               </div>
 
-              {/* Tab 1: Hourly Forecast */}
+              {/* Tab 1: Hourly Trends Charts */}
               {activeTab === 'hourly' && (
                 <div>
-                  <div className="hourly-scroll-container">
-                    {hourlyData.slice(0, 24).map((h, idx) => (
-                      <div className="hourly-item-card" key={idx}>
-                        <div className="hourly-time">
-                          {new Date(h.prediction_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {new Date(h.prediction_time).toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' })}
-                        </div>
-                        <div className="hourly-temp">{parseFloat(h.temperature)}°</div>
-                        <div className="hourly-precip">{parseFloat(h.rainfall) > 0 ? `${h.rainfall}mm` : 'Không mưa'}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Hourly Temperature Chart */}
+                  {/* Temperature Chart */}
                   <div className="glass-card chart-card" style={{ padding: '20px 10px 0 0', background: 'transparent', boxShadow: 'none', border: 'none' }}>
                     <div className="chart-title-bar" style={{ paddingLeft: '20px' }}>
-                      <h3>Biểu đồ nhiệt độ & mây che phủ trong ngày</h3>
+                      <h3>Biểu đồ nhiệt độ & mây che phủ (48 giờ tiếp theo)</h3>
                     </div>
-                    <div style={{ width: '100%', height: 300 }}>
+                    <div style={{ width: '100%', height: 280 }}>
                       <ResponsiveContainer>
                         <AreaChart data={chartHourlyData}>
                           <defs>
@@ -337,28 +351,28 @@ export default function App() {
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                          <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
+                          <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} tickFormatter={(tick) => tick.split(' ')[0]} />
                           <YAxis yAxisId="left" stroke="var(--primary)" fontSize={12} domain={['dataMin - 2', 'dataMax + 2']} />
                           <YAxis yAxisId="right" orientation="right" stroke="var(--secondary)" fontSize={12} domain={[0, 100]} />
                           <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
                           <Legend />
-                          <Area yAxisId="left" type="monotone" dataKey="Nhiệt độ (°C)" stroke="var(--primary)" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={2} />
-                          <Area yAxisId="right" type="monotone" dataKey="Mây che phủ (%)" stroke="var(--secondary)" fillOpacity={1} fill="url(#colorTcc)" strokeWidth={1} />
+                          <Area yAxisId="left" type="monotone" name="Nhiệt độ (°C)" dataKey="Nhiệt độ (°C)" stroke="var(--primary)" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={2} />
+                          <Area yAxisId="right" type="monotone" name="Mây che phủ (%)" dataKey="Mây che phủ (%)" stroke="var(--secondary)" fillOpacity={1} fill="url(#colorTcc)" strokeWidth={1} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
-                  {/* Hourly Rainfall Chart */}
-                  <div className="glass-card chart-card" style={{ padding: '20px 10px 0 0', background: 'transparent', boxShadow: 'none', border: 'none', marginTop: '40px' }}>
+                  {/* Rainfall Chart */}
+                  <div className="glass-card chart-card" style={{ padding: '20px 10px 0 0', background: 'transparent', boxShadow: 'none', border: 'none', marginTop: '30px' }}>
                     <div className="chart-title-bar" style={{ paddingLeft: '20px' }}>
-                      <h3>Biểu đồ lượng mưa lượng mưa chi tiết</h3>
+                      <h3>Biểu đồ lượng mưa chi tiết</h3>
                     </div>
-                    <div style={{ width: '100%', height: 260 }}>
+                    <div style={{ width: '100%', height: 240 }}>
                       <ResponsiveContainer>
                         <BarChart data={chartHourlyData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                          <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
+                          <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} tickFormatter={(tick) => tick.split(' ')[0]} />
                           <YAxis stroke="var(--accent)" fontSize={12} />
                           <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
                           <Bar dataKey="Lượng mưa (mm)" fill="var(--accent)" radius={[4, 4, 0, 0]} />
@@ -369,7 +383,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Tab 2: Daily Forecast */}
+              {/* Tab 2: Daily Summary */}
               {activeTab === 'daily' && (
                 <div className="daily-list">
                   {dailyData.map((d, idx) => (
@@ -396,49 +410,156 @@ export default function App() {
                 </div>
               )}
 
-              {/* Tab 3: Historical Accuracy Analysis */}
-              {activeTab === 'accuracy' && (
+              {/* Tab 3: Detailed Spray Suitability Table (Recreating Image 3 Grid) */}
+              {activeTab === 'spray' && (
                 <div>
-                  <div style={{ marginBottom: '24px', fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                    <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Phân tích dịch chuyển mô hình thời tiết</h3>
-                    <p>
-                      Mô hình Helios hiệu chỉnh dự đoán liên tục mỗi khi nạp dữ liệu mới. Biểu đồ dưới đây so sánh các đường cong nhiệt độ dự đoán cho cùng một mốc thời gian, được trích xuất từ 3 bản tin đồng bộ gần nhất. 
-                      Giúp các chuyên gia nông nghiệp đánh giá sự ổn định của dự báo thời tiết trước khi ra quyết định sản xuất.
-                    </p>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '8px' }}>
+                    {dailyData.map(d => (
+                      <button
+                        key={d.prediction_date}
+                        className={`tab-btn ${selectedSprayDay === d.prediction_date ? 'active' : ''}`}
+                        onClick={() => setSelectedSprayDay(d.prediction_date)}
+                        style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                      >
+                        {formatDateLabel(d.prediction_date)}
+                      </button>
+                    ))}
                   </div>
 
-                  {comparisonData.length > 0 ? (
-                    <div style={{ width: '100%', height: 350 }}>
-                      <ResponsiveContainer>
-                        <LineChart data={comparisonData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                          <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} tickFormatter={(tick) => tick.split(' ')[2]} />
-                          <YAxis stroke="var(--text-secondary)" fontSize={12} />
-                          <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
-                          <Legend />
-                          {Object.keys(comparisonData[0] || {})
-                            .filter(k => k !== 'time')
-                            .map((key, i) => {
-                              const colors = ['var(--primary)', 'var(--secondary)', 'var(--accent)'];
-                              return (
-                                <Line 
-                                  key={key} 
-                                  type="monotone" 
-                                  dataKey={key} 
-                                  stroke={colors[i % colors.length]} 
-                                  strokeWidth={2} 
-                                  dot={false}
-                                  activeDot={{ r: 6 }}
-                                />
-                              );
-                            })
-                          }
-                        </LineChart>
-                      </ResponsiveContainer>
+                  {sprayHourlyFiltered.length > 0 ? (
+                    <div style={{ overflowX: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                        <thead>
+                          <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
+                            <th style={{ padding: '16px 20px', fontWeight: 600 }}>Thời gian</th>
+                            <th style={{ padding: '16px 20px', fontWeight: 600 }}>Đánh giá chung</th>
+                            <th style={{ padding: '16px 20px', fontWeight: 600 }}>Nhiệt độ</th>
+                            <th style={{ padding: '16px 20px', fontWeight: 600 }}>Sức gió</th>
+                            <th style={{ padding: '16px 20px', fontWeight: 600 }}>Lượng mây</th>
+                            <th style={{ padding: '16px 20px', fontWeight: 600 }}>Delta T</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sprayHourlyFiltered.map((h, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                              <td style={{ padding: '14px 20px', fontWeight: 500 }}>
+                                {new Date(h.prediction_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td style={{ padding: '14px 20px', color: getRatingColor(h.spray_rating), fontWeight: 700 }}>
+                                {h.spray_rating}
+                              </td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <span style={{ color: getRatingColor(h.temp_spray_rating), fontWeight: 600 }}>{h.temp_spray_rating || 'GOOD'}</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '6px' }}>({h.temperature}°)</span>
+                              </td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <span style={{ color: getRatingColor(h.wind_spray_rating), fontWeight: 600 }}>{h.wind_spray_rating || 'GOOD'}</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '6px' }}>({h.wind_speed} km/h)</span>
+                              </td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <span style={{ color: getRatingColor(h.tcc_spray_rating), fontWeight: 600 }}>{h.tcc_spray_rating || 'GOOD'}</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '6px' }}>({h.tcc})</span>
+                              </td>
+                              <td style={{ padding: '14px 20px' }}>
+                                <span style={{ color: getRatingColor(h.delta_t_spray_rating), fontWeight: 600 }}>{h.delta_t_spray_rating || 'GOOD'}</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '6px' }}>({h.delta_t})</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   ) : (
                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                      Cần có tối thiểu 2 bản tin dự báo được đồng bộ trong cơ sở dữ liệu để vẽ biểu đồ so sánh.
+                      Không có chi tiết dữ liệu phun xịt thuốc cho ngày này.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 4: Target-hour Historical Prediction Evolution */}
+              {activeTab === 'accuracy' && (
+                <div>
+                  <div className="glass-card" style={{ background: 'rgba(59, 130, 246, 0.05)', borderColor: 'rgba(59, 130, 246, 0.1)', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <Info style={{ color: 'var(--primary)', flexShrink: 0 }} size={20} />
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                      <strong>Trực quan hóa sự thay đổi dự báo:</strong> Chọn một mốc giờ cụ thể dưới đây. 
+                      Đồ thị sẽ vẽ lại toàn bộ các giá trị dự báo cho mốc giờ này qua các phiên đồng bộ khác nhau. 
+                      Bạn sẽ thấy dự báo biến động, tăng hay giảm như thế nào trước khi chính thức diễn ra.
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Mốc giờ dự đoán mục tiêu:</span>
+                    <select
+                      value={selectedPredictionTime}
+                      onChange={(e) => setSelectedPredictionTime(e.target.value)}
+                      style={{
+                        background: 'var(--glass-bg)',
+                        color: '#fff',
+                        border: '1px solid var(--glass-border)',
+                        padding: '8px 16px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {predictionTimesList.map(t => (
+                        <option key={t} value={t}>
+                          {new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ngày ' + new Date(t).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {evolutionData.length > 0 ? (
+                    <div>
+                      {/* Evolution Chart */}
+                      <div style={{ width: '100%', height: 280, marginBottom: '30px' }}>
+                        <ResponsiveContainer>
+                          <LineChart data={evolutionData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                            <XAxis dataKey="runTimeStr" stroke="var(--text-muted)" fontSize={11} />
+                            <YAxis stroke="var(--text-secondary)" fontSize={12} />
+                            <Tooltip contentStyle={{ backgroundColor: '#161c2d', borderColor: 'var(--glass-border)', color: '#fff' }} />
+                            <Legend />
+                            <Line type="monotone" name="Nhiệt độ dự báo (°C)" dataKey="Nhiệt độ (°C)" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4 }} />
+                            <Line type="monotone" name="Sức gió dự báo (km/h)" dataKey="Sức gió (km/h)" stroke="var(--secondary)" strokeWidth={2} dot={{ r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Evolution Table */}
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '16px' }}>Bảng lịch sử biến động dự đoán</h4>
+                      <div style={{ overflowX: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--glass-border)' }}>
+                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Thời điểm nạp (Update Time)</th>
+                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Nhiệt độ dự báo</th>
+                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Sức gió dự báo</th>
+                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Lượng mưa dự báo</th>
+                              <th style={{ padding: '14px 20px', fontWeight: 600 }}>Khả năng phun thuốc</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {evolutionData.map((item, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                <td style={{ padding: '12px 20px', color: 'var(--text-secondary)' }}>{item.runTimeStr}</td>
+                                <td style={{ padding: '12px 20px', fontWeight: 700 }}>{item['Nhiệt độ (°C)']}°C</td>
+                                <td style={{ padding: '12px 20px' }}>{item['Sức gió (km/h)']} km/h</td>
+                                <td style={{ padding: '12px 20px', color: 'var(--accent)' }}>{item['Lượng mưa (mm)']} mm</td>
+                                <td style={{ padding: '12px 20px', color: getRatingColor(item.sprayRating), fontWeight: 700 }}>{item.sprayRating}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                      Không có đủ dữ liệu lịch sử để phân tích biến động cho mốc giờ này.
                     </div>
                   )}
                 </div>

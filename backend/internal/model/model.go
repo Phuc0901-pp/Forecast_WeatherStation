@@ -56,6 +56,10 @@ type HourlyData struct {
 	WeatherIcon          string  `json:"weatherIcon"`
 	WeatherIconPrecis    string  `json:"weatherIconPrecis"`
 	SprayRating          string  `json:"sprayRating"`
+	TempSprayRating      string  `json:"tempSprayRating"`
+	WindSprayRating      string  `json:"windSprayRating"`
+	TccSprayRating       string  `json:"tccSprayRating"`
+	DeltaTSprayRating    string  `json:"deltaTSprayRating"`
 }
 
 // DailyData represents a single day's summary prediction.

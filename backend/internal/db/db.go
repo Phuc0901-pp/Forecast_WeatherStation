@@ -91,19 +91,36 @@ func (dbc *DBClient) SaveForecast(forecast *model.ForecastResponse) error {
 		return fmt.Errorf("failed to insert forecast run: %w", err)
 	}
 
-	// 2. Insert hourly forecasts
+	// 2. Collect all hourly data (both top-level and nested within dailyData)
+	allHourly := make(map[string]model.HourlyData)
+
+	// Add top-level hourly data (usually containing remaining hours of today)
+	for _, h := range forecast.HourlyData {
+		allHourly[h.Time] = h
+	}
+
+	// Add nested hourly data (containing full 24-hour predictions for all days)
+	for _, d := range forecast.DailyData {
+		for _, h := range d.HourlyData {
+			allHourly[h.Time] = h
+		}
+	}
+
+	// 3. Insert hourly forecasts
 	hourlyQuery := `
 		INSERT INTO hourly_forecast (
 			update_time, prediction_time, temperature, weather_summary, pressure,
 			rainfall, rainfall_probability, rainfall_confidence, wind_speed, humidity,
 			wind_direction_compass, wind_direction_angle, uv_index, uv_level, dew_point,
-			delta_t, tcc, weather_icon, weather_icon_precis, spray_rating, raw_data
+			delta_t, tcc, weather_icon, weather_icon_precis, spray_rating,
+			temp_spray_rating, wind_spray_rating, tcc_spray_rating, delta_t_spray_rating,
+			raw_data
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
 		) ON CONFLICT (update_time, prediction_time) DO NOTHING;
 	`
 
-	for _, h := range forecast.HourlyData {
+	for _, h := range allHourly {
 		rawBytes, _ := json.Marshal(h)
 		_, err = tx.ExecContext(
 			ctx,
@@ -111,7 +128,7 @@ func (dbc *DBClient) SaveForecast(forecast *model.ForecastResponse) error {
 			forecast.UpdateTime,
 			h.Time,
 			parseNumeric(h.Temperature),
-			h.WeatherIconPrecis,
+			h.WeatherIconPrecis, // weather_summary
 			parseNumeric(h.Pressure),
 			parseNumeric(h.Rainfall),
 			parseNumeric(h.RainfallProbability),
@@ -128,6 +145,10 @@ func (dbc *DBClient) SaveForecast(forecast *model.ForecastResponse) error {
 			h.WeatherIcon,
 			h.WeatherIconPrecis,
 			h.SprayRating,
+			h.TempSprayRating,
+			h.WindSprayRating,
+			h.TccSprayRating,
+			h.DeltaTSprayRating,
 			rawBytes,
 		)
 		if err != nil {
