@@ -75,7 +75,7 @@ export default function App() {
         setSelectedSprayDay(daily[0].prediction_date);
       }
 
-      // 4. Fallback standard query: Get unique prediction times in chronological order
+      // 4. Fallback query for prediction times list
       const { data: fallbackTimes } = await supabase
         .from('hourly_forecast')
         .select('prediction_time')
@@ -97,7 +97,7 @@ export default function App() {
     }
   };
 
-  // Fetch prediction evolution data when target prediction time changes
+  // Fetch prediction evolution data
   useEffect(() => {
     if (selectedPredictionTime) {
       fetchEvolutionData(selectedPredictionTime);
@@ -161,7 +161,6 @@ export default function App() {
     }
   };
 
-  // Helper to choose Lucide weather icon
   const getWeatherIcon = (iconName) => {
     const name = (iconName || '').toUpperCase();
     if (name.includes('RAIN') || name.includes('SHOWER')) {
@@ -173,7 +172,6 @@ export default function App() {
     return <Sun className="weather-icon-large" />;
   };
 
-  // Format date to short readable
   const formatDateLabel = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('vi-VN', {
       timeZone: 'Asia/Ho_Chi_Minh',
@@ -203,7 +201,7 @@ export default function App() {
     return 'var(--error)';
   };
 
-  // Export predictions and deltas to Excel/CSV for the selected 1-hour target
+  // Export 1-hour target history to CSV
   const handleExportCSV = () => {
     if (evolutionData.length === 0) return;
     
@@ -256,11 +254,10 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  // Export ENTIRE database predictions and deltas to Excel/CSV
+  // Export ENTIRE database predictions and deltas to CSV
   const handleExportAllCSV = async () => {
     setIsExportingAll(true);
     try {
-      // Fetch all hourly forecast records ordered by prediction_time and update_time
       const { data, error } = await supabase
         .from('hourly_forecast')
         .select('*')
@@ -294,7 +291,6 @@ export default function App() {
         ]
       ];
 
-      // Keep track of values for delta calculations grouped by prediction_time
       const groups = {};
       data.forEach(item => {
         if (!groups[item.prediction_time]) {
@@ -303,7 +299,6 @@ export default function App() {
         groups[item.prediction_time].push(item);
       });
 
-      // Now iterate through each group and calculate deltas
       Object.keys(groups).forEach(predTime => {
         const groupRecords = groups[predTime];
         
@@ -333,7 +328,6 @@ export default function App() {
             rainDeltaOrigin = rainVal - (parseFloat(origin.rainfall) || 0);
           }
 
-          // Format timestamps for display (forced to Vietnam timezone)
           const formattedPredTime = new Date(item.prediction_time).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
           const formattedUpdateTime = new Date(item.update_time).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
@@ -377,25 +371,24 @@ export default function App() {
     }
   };
 
-  // Filter hourly data for the selected day in Spray Grid
   const sprayHourlyFiltered = hourlyData.filter(h => {
     if (!selectedSprayDay) return false;
     const predDate = h.prediction_time.split('T')[0];
     return predDate === selectedSprayDay;
   });
 
-  // Chart data formatters
   const chartHourlyData = hourlyData.map(h => ({
     time: new Date(h.prediction_time).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }),
     'Nhiệt độ (°C)': parseFloat(h.temperature) || 0,
     'Độ ẩm (%)': parseFloat(h.humidity) || 0,
     'Lượng mưa (mm)': parseFloat(h.rainfall) || 0,
+    'Khả năng mưa (%)': parseFloat(h.rainfall_probability) || 0,
     'Mây che phủ (%)': parseFloat(h.tcc) || 0
   })).slice(0, 48); // Show 48 hours trend
 
   return (
     <div className="dashboard-container">
-      {/* Header with TanBao AgTech Logo */}
+      {/* Header */}
       <header className="header-wrapper">
         <div className="title-section" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <img 
@@ -445,7 +438,7 @@ export default function App() {
           <div className="sidebar-panel">
             <div className="glass-card current-card">
               <div className="current-card-content">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContext: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                   <MapPin size={14} />
                   <span>{latestRun.location}</span>
                 </div>
@@ -465,6 +458,10 @@ export default function App() {
                     <span className="meta-mini-value" style={{ color: 'var(--accent)' }}>{getRecentField('rainfall', ' mm')}</span>
                   </div>
                   <div className="meta-mini-item">
+                    <span className="meta-mini-label">Khả năng mưa</span>
+                    <span className="meta-mini-value" style={{ color: 'var(--accent)' }}>{getRecentField('rainfall_probability', ' %')}</span>
+                  </div>
+                  <div className="meta-mini-item">
                     <span className="meta-mini-label">Độ ẩm</span>
                     <span className="meta-mini-value">{getRecentField('humidity', ' %')}</span>
                   </div>
@@ -475,6 +472,10 @@ export default function App() {
                   <div className="meta-mini-item">
                     <span className="meta-mini-label">Mây che phủ</span>
                     <span className="meta-mini-value">{getRecentField('tcc', ' %')}</span>
+                  </div>
+                  <div className="meta-mini-item">
+                    <span className="meta-mini-label">Điểm sương</span>
+                    <span className="meta-mini-value">{getRecentField('dew_point', '°C')}</span>
                   </div>
                 </div>
               </div>
@@ -512,7 +513,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Right Panel: Tabs, Charts, and Details */}
+          {/* Right Panel */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="glass-card">
               <div className="tabs-header">
@@ -545,7 +546,6 @@ export default function App() {
               {/* Tab 1: Hourly Trends Charts */}
               {activeTab === 'hourly' && (
                 <div>
-                  {/* Temperature Chart */}
                   <div className="glass-card chart-card" style={{ padding: '20px 10px 0 0', background: 'transparent', boxShadow: 'none', border: 'none' }}>
                     <div className="chart-title-bar" style={{ paddingLeft: '20px' }}>
                       <h3>Biểu đồ nhiệt độ & mây che phủ (48 giờ tiếp theo)</h3>
@@ -576,19 +576,21 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Rainfall Chart */}
                   <div className="glass-card chart-card" style={{ padding: '20px 10px 0 0', background: 'transparent', boxShadow: 'none', border: 'none', marginTop: '30px' }}>
                     <div className="chart-title-bar" style={{ paddingLeft: '20px' }}>
-                      <h3>Biểu đồ lượng mưa chi tiết</h3>
+                      <h3>Biểu đồ lượng mưa & khả năng mưa</h3>
                     </div>
-                    <div style={{ width: '100%', height: 240 }}>
+                    <div style={{ width: '100%', height: 260 }}>
                       <ResponsiveContainer>
                         <BarChart data={chartHourlyData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                           <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} tickFormatter={(tick) => tick.split(' ')[0]} />
-                          <YAxis stroke="var(--accent)" fontSize={12} />
+                          <YAxis yAxisId="left" stroke="var(--accent)" fontSize={12} label={{ value: 'Lượng mưa (mm)', angle: -90, position: 'insideLeft', style: { fill: 'var(--accent)' } }} />
+                          <YAxis yAxisId="right" orientation="right" stroke="var(--secondary)" fontSize={12} label={{ value: 'Khả năng mưa (%)', angle: 90, position: 'insideRight', style: { fill: 'var(--secondary)' } }} />
                           <Tooltip contentStyle={{ backgroundColor: '#f0f7f3', borderColor: 'var(--glass-border)', color: '#0f172a' }} />
-                          <Bar dataKey="Lượng mưa (mm)" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                          <Legend />
+                          <Bar yAxisId="left" name="Lượng mưa (mm)" dataKey="Lượng mưa (mm)" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                          <Bar yAxisId="right" name="Khả năng mưa (%)" dataKey="Khả năng mưa (%)" fill="var(--secondary)" radius={[4, 4, 0, 0]} opacity={0.6} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -691,7 +693,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Tab 4: Target-hour Historical Prediction Evolution */}
+              {/* Tab 4: Target-hour Prediction Evolution */}
               {activeTab === 'accuracy' && (
                 <div>
                   <div className="glass-card" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.1)', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -703,7 +705,7 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                       <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Mốc giờ dự đoán mục tiêu:</span>
                       <select
@@ -776,8 +778,8 @@ export default function App() {
                             <YAxis stroke="var(--text-secondary)" fontSize={12} />
                             <Tooltip contentStyle={{ backgroundColor: '#f0f7f3', borderColor: 'var(--glass-border)', color: '#0f172a' }} />
                             <Legend />
-                            <Line type="monotone" name="Nhiệt độ dự báo (°C)" dataKey="Nhiệt độ (°C)" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4 }} />
-                            <Line type="monotone" name="Sức gió dự báo (km/h)" dataKey="Sức gió (km/h)" stroke="var(--secondary)" strokeWidth={2} dot={{ r: 3 }} />
+                            <Line type="monotone" name="Nhiệt độ dự báo (°C)" dataKey="temp" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4 }} />
+                            <Line type="monotone" name="Sức gió dự báo (km/h)" dataKey="wind" stroke="var(--secondary)" strokeWidth={2} dot={{ r: 3 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
