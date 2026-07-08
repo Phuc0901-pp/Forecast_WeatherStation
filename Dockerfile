@@ -37,7 +37,6 @@ WORKDIR /app
 # Copy Go binary and assets
 COPY --from=backend-builder /app/backend/collector-service ./collector-service
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-COPY --from=backend-builder /app/backend/.env ./.env
 
 # Default port
 EXPOSE 8080
