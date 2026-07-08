@@ -188,6 +188,12 @@ export default function App() {
     return val !== null && val !== undefined ? `${val}${suffix}` : 'N/A';
   };
 
+  const getRunField = (field, suffix = '', fallback = 'N/A') => {
+    if (!latestRun) return fallback;
+    const val = latestRun[field];
+    return val !== null && val !== undefined ? `${val}${suffix}` : fallback;
+  };
+
   const getRecentSummary = () => {
     if (dailyData && dailyData.length > 0) return dailyData[0].weather_summary;
     if (hourlyData && hourlyData.length > 0) return hourlyData[0].weather_summary;
@@ -443,7 +449,7 @@ export default function App() {
 
       {latestRun && (
         <div className="dashboard-grid">
-          {/* Left Panel: Current Weather */}
+          {/* Left Panel: Current Weather Summary */}
           <div className="sidebar-panel">
             <div className="glass-card current-card">
               <div className="current-card-content">
@@ -522,8 +528,117 @@ export default function App() {
             </div>
           </div>
 
-          {/* Right Panel */}
+          {/* Right Panel: Detailed Metrics Cards & Tabs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            {/* 9-card Grid mimicking Axistream dashboard */}
+            <div className="current-details-grid">
+              {/* 1. Tốc độ & Hướng gió */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Wind size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Hướng & Tốc độ gió</span>
+                  <span className="detail-val">
+                    {getRunField('wind_direction_compass', '')} ({getRunField('wind_direction_angle', '°')}) - {getRunField('wind_speed', ' km/h')}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Lượng mưa hôm nay */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <CloudRain size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Tổng lượng mưa hôm nay</span>
+                  <span className="detail-val">{getRunField('total_precipitation', ' mm')}</span>
+                </div>
+              </div>
+
+              {/* 3. Áp suất khí quyển */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Compass size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Áp suất khí quyển</span>
+                  <span className="detail-val">{getRunField('pressure', ' hPa')}</span>
+                </div>
+              </div>
+
+              {/* 4. Chỉ số UV */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Sun size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Tia UV & Mức độ</span>
+                  <span className="detail-val">
+                    {getRunField('uv_index', '')} ({getRunField('uv_level', '')})
+                  </span>
+                </div>
+              </div>
+
+              {/* 5. Độ ẩm không khí */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Droplets size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Độ ẩm không khí</span>
+                  <span className="detail-val">{getRunField('humidity', ' %')}</span>
+                </div>
+              </div>
+
+              {/* 6. Điểm sương */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Thermometer size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Điểm sương (Dew Point)</span>
+                  <span className="detail-val">{getRunField('dew_point', '°C')}</span>
+                </div>
+              </div>
+
+              {/* 7. Delta T */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Thermometer size={20} style={{ transform: 'rotate(90deg)' }} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Chênh lệch Delta T</span>
+                  <span className="detail-val">{getRunField('delta_t', '°C')}</span>
+                </div>
+              </div>
+
+              {/* 8. Khả năng sương mù */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper">
+                  <Cloud size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Khả năng sương mù</span>
+                  <span className="detail-val">{getRunField('fog_probability', '')}</span>
+                </div>
+              </div>
+
+              {/* 9. Đánh giá phun thuốc */}
+              <div className="detail-card">
+                <div className="detail-icon-wrapper" style={{ color: getRatingColor(latestRun?.spray_rating) }}>
+                  <AlertCircle size={20} />
+                </div>
+                <div className="detail-info">
+                  <span className="detail-label">Khả năng phun thuốc</span>
+                  <span className="detail-val" style={{ color: getRatingColor(latestRun?.spray_rating) }}>
+                    {getRunField('spray_rating', '')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="glass-card">
               <div className="tabs-header">
                 <button 

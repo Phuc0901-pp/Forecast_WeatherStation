@@ -458,3 +458,72 @@ select:focus {
   border-color: var(--primary) !important;
   outline: none;
 }
+
+/* Current Conditions Detail Grid */
+.current-details-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 640px) {
+  .current-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .current-details-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.detail-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 20px var(--glass-shadow);
+  border-radius: var(--radius-md);
+  transition: var(--transition-smooth);
+}
+
+.detail-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: rgba(16, 185, 129, 0.2);
+  transform: translateY(-1px);
+}
+
+.detail-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.06);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.detail-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.detail-val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+

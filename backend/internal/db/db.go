@@ -88,11 +88,35 @@ func (dbc *DBClient) SaveForecast(forecast *model.ForecastResponse) error {
 
 	// 1. Insert forecast run details
 	runQuery := `
-		INSERT INTO weather_forecast_run (location, update_time)
-		VALUES ($1, $2)
-		ON CONFLICT (update_time) DO NOTHING;
+		INSERT INTO weather_forecast_run (
+			location, update_time, temperature, weather_summary, pressure,
+			total_precipitation, wind_speed, humidity, wind_direction_compass,
+			wind_direction_angle, uv_index, uv_level, dew_point, delta_t,
+			fog_probability, spray_rating
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+		) ON CONFLICT (update_time) DO NOTHING;
 	`
-	_, err = tx.ExecContext(ctx, runQuery, forecast.Location, forecast.UpdateTime)
+	_, err = tx.ExecContext(
+		ctx,
+		runQuery,
+		forecast.Location,
+		forecast.UpdateTime,
+		parseNumeric(forecast.RecentData.Temperature),
+		forecast.RecentData.WeatherSummary,
+		parseNumeric(forecast.RecentData.Pressure),
+		parseNumeric(forecast.RecentData.TotalPrecipitation),
+		parseNumeric(forecast.RecentData.WindSpeed),
+		parseNumeric(forecast.RecentData.Humidity),
+		forecast.RecentData.WindDirectionCompass,
+		forecast.RecentData.WindDirectionAngle,
+		parseNumeric(forecast.RecentData.UVIndex),
+		forecast.RecentData.UVLevel,
+		parseNumeric(forecast.RecentData.DewPoint),
+		parseNumeric(forecast.RecentData.DeltaT),
+		forecast.RecentData.FogProbability,
+		forecast.RecentData.SprayRating,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to insert forecast run: %w", err)
 	}
